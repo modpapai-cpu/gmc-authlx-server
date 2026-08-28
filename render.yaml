@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: gmc-authlx-proxy
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: AUTHLX_NAME
+        value: SteamTool
+      - key: AUTHLX_OWNERID
+        value: c90b8793-0c53-4d57-b8ad-5edaf6dcf0db
+      - key: AUTHLX_VERSION
+        value: "1.0"
+      - key: AUTHLX_URL
+        value: https://api.authlx.com/api/v2/client/
+      - key: AUTHLX_SECRET
+        sync: false
