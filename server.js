@@ -80,6 +80,37 @@ function authPayload(hwid, extra = {}) {
 app.get("/", (_, res) => res.json({ ok: true, service: "gmc-authlx", endpoint: "/api/license" }));
 app.get("/health", (_, res) => res.json({ ok: true }));
 
+function isExpired(value) {
+  if (!value || String(value).toLowerCase() === "lifetime") return false;
+  const n = Number(value);
+  if (Number.isFinite(n)) {
+    const ms = n < 1e12 ? n * 1000 : n;
+    return ms <= Date.now();
+  }
+  const t = Date.parse(String(value));
+  return Number.isFinite(t) ? t <= Date.now() : false;
+}
+
+async function postAuthCheck(sessionToken, hwid) {
+  if (!sessionToken) return { banned: false };
+  try {
+    const r = await authlx("check_ban", authPayload(hwid, { session_token: sessionToken }));
+    return { banned: !!r?.is_banned || String(r?.status || "").toLowerCase() === "banned" };
+  } catch (_) {
+    return { banned: false };
+  }
+}
+
+function entitlementValid(info) {
+  const u = info || {};
+  if (u.is_banned === true) return false;
+  const subs = Array.isArray(u.subscriptions) ? u.subscriptions : [];
+  if (subs.length > 0) return subs.some(s => !isExpired(s?.expiry));
+  const exp = u.expiration_date ?? u.expires ?? u.expiry;
+  if (exp !== undefined && exp !== null && String(exp) !== "") return !isExpired(exp);
+  return true;
+}
+
 app.post("/api/license", async (req, res) => {
   const license = String(req.body?.license || "").trim();
   const hwid = String(req.body?.hwid || "");
@@ -98,7 +129,11 @@ app.post("/api/license", async (req, res) => {
     try {
       const login = await authlx("login", loginPayload);
       if (String(login.status || "").toLowerCase() === "success") {
-        return res.json({ valid: true, message: login.message || "License valid", session_token: login.session_token || login.data?.token || sessionToken, info: login.info || login.data?.user || {} });
+        const token = login.session_token || login.data?.token || sessionToken;
+        const info = login.info || login.data?.user || {};
+        const ban = await postAuthCheck(token, hwid);
+        if (ban.banned || !entitlementValid(info)) return res.status(403).json({ valid: false, message: "License revoked or expired" });
+        return res.json({ valid: true, message: login.message || "License valid", session_token: token, expires: info.expiration_date || info.expires || info.expiry || "", info });
       }
     } catch (loginErr) {
       console.log("AuthLX login attempt failed; trying registration:", loginErr.message);
@@ -116,7 +151,10 @@ app.post("/api/license", async (req, res) => {
       const registration = await authlx("register", registerPayload);
       if (String(registration.status || "").toLowerCase() === "success") {
         const token = registration.session_token || registration.data?.token || sessionToken;
-        return res.json({ valid: true, message: registration.message || "License valid", session_token: token, info: registration.info || registration.data?.user || {} });
+        const info = registration.info || registration.data?.user || {};
+        const ban = await postAuthCheck(token, hwid);
+        if (ban.banned || !entitlementValid(info)) return res.status(403).json({ valid: false, message: "License revoked or expired" });
+        return res.json({ valid: true, message: registration.message || "License valid", session_token: token, expires: info.expiration_date || info.expires || info.expiry || "", info });
       }
     } catch (registerErr) {
       console.log("AuthLX register attempt failed; retrying login:", registerErr.message);
