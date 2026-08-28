@@ -23,7 +23,7 @@ function canonical(v){
 }
 async function authlx(endpoint,payload){
   const requestNonce=nonce(32);
-  const r=await fetch(`${AUTHLX_URL}/${endpoint}`,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json","User-Agent":`AuthLX-SDK-Render/1.0 (${NAME})`,`X-Request-Nonce`:requestNonce},body:JSON.stringify(payload)});
+  const r=await fetch(`${AUTHLX_URL}/${endpoint}`,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json","User-Agent":`AuthLX-SDK-Render/1.0 (${NAME})`,"X-Request-Nonce":requestNonce},body:JSON.stringify(payload)});
   const text=await r.text();
   if(!r.ok) throw new Error(`AuthLX HTTP ${r.status}`);
   let data; try{data=JSON.parse(text)}catch{throw new Error("Invalid AuthLX response")}
