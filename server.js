@@ -16,6 +16,10 @@ const NAME=process.env.AUTHLX_NAME||"SteamTool";
 const OWNERID=process.env.AUTHLX_OWNERID||"";
 const VERSION=process.env.AUTHLX_VERSION||"1.0";
 const SECRET=process.env.AUTHLX_SECRET||"";
+const LATEST_VERSION = process.env.LATEST_VERSION || VERSION;
+const MIN_VERSION = process.env.MIN_VERSION || LATEST_VERSION;
+const UPDATE_URL = process.env.UPDATE_URL || "";
+
 
 function nonce(){ return crypto.randomBytes(16).toString("hex"); }
 function hmac(key,msg){ return crypto.createHmac("sha256",key).update(msg,"utf8").digest("hex"); }
