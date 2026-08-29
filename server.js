@@ -105,13 +105,30 @@ app.post("/api/license",async(req,res)=>{
         ...(bootToken?{session_token:bootToken}:{})
       }));
       if(String(reg?.status||"").toLowerCase()==="success"){
-        const token=tokenOf(reg)||bootToken;
+        // AuthLX may return a successful registration without an auth token.
+        // The official SDK then logs in again, so mirror that behavior here.
+        let token=tokenOf(reg);
         if(token){
           const banned=await authlx("check_ban",payload(hwid,{session_token:token}));
           if(banned?.is_banned||String(banned?.status||"").toLowerCase()==="banned")
             return res.status(403).json({valid:false,message:"License is banned"});
+          return res.json({valid:true,token,message:reg?.message||"License activated"});
         }
-        if(token)return res.json({valid:true,token,message:reg?.message||"License activated"});
+
+        try{
+          const relogin=await authlx("login",payload(hwid,{username:license,password:license}));
+          if(String(relogin?.status||"").toLowerCase()==="success"){
+            token=tokenOf(relogin);
+            if(token){
+              const banned=await authlx("check_ban",payload(hwid,{session_token:token}));
+              if(banned?.is_banned||String(banned?.status||"").toLowerCase()==="banned")
+                return res.status(403).json({valid:false,message:"License is banned"});
+              return res.json({valid:true,token,message:reg?.message||"License activated"});
+            }
+          }
+        }catch(e){
+          console.log("AuthLX post-register login:",e.message);
+        }
       }
     }catch(e){console.log("AuthLX register:",e.message);}
 
